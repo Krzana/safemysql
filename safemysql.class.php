@@ -147,10 +147,10 @@ class SafeMySQL
 		@$this->conn = mysqli_connect($opt['host'], $opt['user'], $opt['pass'], $opt['db'], $opt['port'], $opt['socket']);
 		if ( !$this->conn )
 		{
-			$this->error(mysqli_connect_errno()." ".mysqli_connect_error());
+			$this->error(mysqli_connect_error(), mysqli_connect_errno());
 		}
 
-		mysqli_set_charset($this->conn, $opt['charset']) or $this->error(mysqli_error($this->conn));
+		mysqli_set_charset($this->conn, $opt['charset']) or $this->error(mysqli_error($this->conn), mysqli_errno($this->conn));
 		unset($opt); // I am paranoid
 	}
 
@@ -534,13 +534,14 @@ class SafeMySQL
 		if (!$res)
 		{
 			$error = mysqli_error($this->conn);
+			$errno = mysqli_errno($this->conn);
 			
 			end($this->stats);
 			$key = key($this->stats);
 			$this->stats[$key]['error'] = $error;
 			$this->cutStats();
 			
-			$this->error("$error. Full query: [$query]");
+			$this->error("$error. Full query: [$query]", $errno);
 		}
 		$this->cutStats();
 		return $res;
@@ -747,7 +748,7 @@ class SafeMySQL
 		return implode(',', $parsedRows);
 	}
 
-	private function error($err)
+	private function error($err, $errno = 0)
 	{
 		$err  = __CLASS__.": ".$err;
 
@@ -756,7 +757,7 @@ class SafeMySQL
 			$err .= ". Error initiated in ".$this->caller().", thrown";
 			trigger_error($err,E_USER_ERROR);
 		} else {
-			throw new $this->exname($err);
+			throw new $this->exname($err, $code);
 		}
 	}
 
