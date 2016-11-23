@@ -22,6 +22,7 @@
  * ?b ("boolean")             - booleans (can accept true, false, 1, 0, "1", or "0")
  * ?i ("integer")             - integers
  * ?n ("name")                - identifiers (table and field names)
+ * ?z ("multi-field")         - multiple field names (expects an array of values)
  * ?a ("array")               - complex placeholder for IN () clauses (expects an array of values; the
  *                                    placeholder will be substituted for a string in 'a','b','c' format, without
  *                                    parenthesis)
@@ -550,7 +551,7 @@ class SafeMySQL
 	{
 		$query = '';
 		$raw   = array_shift($args);
-		$array = preg_split('~(\?[nsiuakmpb])~u',$raw,null,PREG_SPLIT_DELIM_CAPTURE);
+		$array = preg_split('~(\?[nzsiuakmpb])~u',$raw,null,PREG_SPLIT_DELIM_CAPTURE);
 		$anum  = count($args);
 		$pnum  = floor(count($array) / 2);
 		if ( $pnum != $anum )
@@ -571,6 +572,9 @@ class SafeMySQL
 			{
 				case '?n':
 					$part = $this->escapeIdent($value);
+					break;
+				case '?z':
+					$part = $this->createMultiIdent($value);
 					break;
 				case '?s':
 					$part = $this->escapeString($value);
@@ -651,6 +655,27 @@ class SafeMySQL
 		} else {
 			$this->error("Empty value for identifier (?n) placeholder");
 		}
+	}
+
+	private function createMultiIdent($data)
+	{
+		if (!is_array($data))
+		{
+			$this->error("Value for multi-field (?z) placeholder should be array");
+			return;
+		}
+		if (!$data)
+		{
+			$this->error("Empty array for multi-field (?z) placeholder");
+			return;
+		}
+		$query = $comma = '';
+		foreach ($data as $value)
+		{
+			$query .= $comma.$this->escapeIdent($value);
+			$comma  = ",";
+		}
+		return $query;
 	}
 
 	private function createIN($data)
