@@ -757,7 +757,7 @@ class SafeMySQL
 			$err .= ". Error initiated in ".$this->caller().", thrown";
 			trigger_error($err,E_USER_ERROR);
 		} else {
-			throw new $this->exname($err, $code);
+			throw new $this->exname($err, $errno);
 		}
 	}
 
