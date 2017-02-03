@@ -19,8 +19,10 @@ Yet it is very easy to use. You need learn only a few things.
 1. You have to always pass variables into the query via *placeholder*
 2. Each placeholder has to be marked with its data type. At the moment there are 6 types:
  * `?s` **("string")**              - strings (also `DATE`, `FLOAT` and `DECIMAL`)
+ * `?b` **("boolean")**             - booleans (can accept true, false, 1, 0, "1", or "0")
  * `?i` **("integer")**             - integers
- * `?n` **("name")**                - identifiers (table and field names) 
+ * `?n` **("name")**                - identifiers (table and field names)
+ * `?z` **("multi-field")**         - multiple field names (expects an array of values)
  * `?a` **("array")**               - complex placeholder for `IN ()` clauses (expects an array of values; the placeholder will be substituted for a string in 'a','b','c' format, without parenthesis)
  * `?u` **("update")**              - complex placeholder for `SET` clauses (expects an associative array mapping field names to values; the placeholder will be substituted for a string in `` `field` ='value', `field` ='value' `` format)
  * `?m` **("multi-row")**           - complex placeholder for bulk `INSERT` queries with a `VALUES` clause. Expects an array of arrays, with the child arrays representing rows to be inserted. The placeholder will be substituted for a string in `('a', 'b', 'c'), ('e', 'f', 'g')` format.
