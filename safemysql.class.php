@@ -178,6 +178,7 @@ class SafeMySQL
 	/**
 	 * Run the provided callback inside a transaction
 	 * @param  callable $callback
+	 * @param  [boolean] $can_retry If the whole transaction should be retried, if it fails due to a deadlock
 	 * @return mixed whatever the callback returns
 	 */
 	public function transaction($callback, $can_retry = false)
