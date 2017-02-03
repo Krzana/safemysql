@@ -180,20 +180,25 @@ class SafeMySQL
 	 * @param  callable $callback
 	 * @return mixed whatever the callback returns
 	 */
-	public function transaction($callback)
+	public function transaction($callback, $can_retry = false)
 	{
 		$this->query('START TRANSACTION');
+		$retry_on_deadlock_status = $this->retryOnDeadlock;
+		$this->retryOnDeadlock = false;
     try
     {
-      $result = $callback($this);
+    	$result = $this->retryIfDeadlocked($callback($this), $can_retry);
+	    $this->query('COMMIT');
+	    return $result;
     } catch (Throwable $e)
     {
       $this->query('ROLLBACK');
       throw $e;
+    } finally
+    {
+    	$this->retryOnDeadlock = $retry_on_deadlock_status;
     }
 
-    $this->query('COMMIT');
-    return $result;
 	}
 
 	/**
@@ -549,8 +554,8 @@ class SafeMySQL
 	 */
 	private function rawQuery($query)
 	{
-		for ($i = 0; $i <= $this->maximumRetriesOnDeadlock; $i++) {
-			try
+		return $this->retryIfDeadlocked(
+			function() use($query)
 			{
 				$start = microtime(TRUE);
 				$res   = mysqli_query($this->conn, $query);
@@ -575,11 +580,25 @@ class SafeMySQL
 				}
 				$this->cutStats();
 				return $res;
+			}
+		);
+	}
+
+	private function retryIfDeadlocked($callback, $can_retry = null)
+	{
+		if ($can_retry === null)
+		{
+			$can_retry = $this->retryOnDeadlock;
+		}
+		for ($i = 0; $i <= $this->maximumRetriesOnDeadlock; $i++)
+		{
+			try {
+				return $callback();
 			} catch (Exception $e)
 			{
-				// Only catch and retry if this is a deadlock, we are configured to retry on deadlocks, and have not yet
-				// reached the maximum number of retries
-				if ($e->getCode() !== 1205 || !$this->retryOnDeadlock || $i === $this->maximumRetriesOnDeadlock)
+				// Only retry if this is a deadlock, this callable is allowed to be retried, and we have not yet reached
+				// the maximum number of retries
+				if (!$can_retry || $e->getCode() !== 1205 || $i === $this->maximumRetriesOnDeadlock)
 				{
 					throw $e;
 				}
