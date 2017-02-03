@@ -187,7 +187,7 @@ class SafeMySQL
 		$this->retryOnDeadlock = false;
     try
     {
-    	$result = $this->retryIfDeadlocked($callback($this), $can_retry);
+    	$result = $this->retryIfDeadlocked($callback, $can_retry);
 	    $this->query('COMMIT');
 	    return $result;
     } catch (Throwable $e)
@@ -555,7 +555,7 @@ class SafeMySQL
 	private function rawQuery($query)
 	{
 		return $this->retryIfDeadlocked(
-			function() use($query)
+			function($db) use($query)
 			{
 				$start = microtime(TRUE);
 				$res   = mysqli_query($this->conn, $query);
@@ -593,7 +593,7 @@ class SafeMySQL
 		for ($i = 0; $i <= $this->maximumRetriesOnDeadlock; $i++)
 		{
 			try {
-				return $callback();
+				return $callback($this);
 			} catch (Exception $e)
 			{
 				// Only retry if this is a deadlock, this callable is allowed to be retried, and we have not yet reached
