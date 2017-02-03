@@ -174,6 +174,28 @@ class SafeMySQL
 		return $this->rawQuery($this->prepareQuery(func_get_args()));
 	}
 
+
+	/**
+	 * Run the provided callback inside a transaction
+	 * @param  callable $callback
+	 * @return mixed whatever the callback returns
+	 */
+	public function transaction($callback)
+	{
+		$this->query('START TRANSACTION');
+    try
+    {
+      $result = $callback($this);
+    } catch (Throwable $e)
+    {
+      $this->query('ROLLBACK');
+      throw $e;
+    }
+
+    $this->query('COMMIT');
+    return $result;
+	}
+
 	/**
 	 * Conventional function to fetch single row. 
 	 * 
