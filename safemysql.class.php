@@ -115,6 +115,8 @@ class SafeMySQL
 		'charset'   => 'utf8',
 		'errmode'   => 'exception', //or 'error'
 		'exception' => 'Exception', //Exception class name
+		'retryOnDeadlock' => true,
+		'maximumRetriesOnDeadlock' => 3,
 	);
 
 	const RESULT_ASSOC = MYSQLI_ASSOC;
@@ -126,6 +128,8 @@ class SafeMySQL
 
 		$this->emode  = $opt['errmode'];
 		$this->exname = $opt['exception'];
+		$this->retryOnDeadlock = $opt['retryOnDeadlock'];
+		$this->maximumRetriesOnDeadlock = $opt['maximumRetriesOnDeadlock'];
 
 		if (isset($opt['mysqli']))
 		{
@@ -517,35 +521,48 @@ class SafeMySQL
 	/**
 	 * private function which actually executes $query.
 	 * also logs some stats like profiling info and error message
-	 * 
+	 *
 	 * @param string $query - a regular SQL query
 	 * @return mysqli result resource or FALSE on error
 	 */
 	private function rawQuery($query)
 	{
-		$start = microtime(TRUE);
-		$res   = mysqli_query($this->conn, $query);
-		$timer = microtime(TRUE) - $start;
+		for ($i = 0; $i <= $this->maximumRetriesOnDeadlock; $i++) {
+			try
+			{
+				$start = microtime(TRUE);
+				$res   = mysqli_query($this->conn, $query);
+				$timer = microtime(TRUE) - $start;
 
-		$this->stats[] = array(
-			'query' => $query,
-			'start' => $start,
-			'timer' => $timer,
-		);
-		if (!$res)
-		{
-			$error = mysqli_error($this->conn);
-			$errno = mysqli_errno($this->conn);
-			
-			end($this->stats);
-			$key = key($this->stats);
-			$this->stats[$key]['error'] = $error;
-			$this->cutStats();
-			
-			$this->error("$error. Full query: [$query]", $errno);
+				$this->stats[] = array(
+					'query' => $query,
+					'start' => $start,
+					'timer' => $timer,
+				);
+				if (!$res)
+				{
+					$error = mysqli_error($this->conn);
+					$errno = mysqli_errno($this->conn);
+
+					end($this->stats);
+					$key = key($this->stats);
+					$this->stats[$key]['error'] = $error;
+					$this->cutStats();
+
+					$this->error("$error. Full query: [$query]", $errno);
+				}
+				$this->cutStats();
+				return $res;
+			} catch (Exception $e)
+			{
+				// Only catch and retry if this is a deadlock, we are configured to retry on deadlocks, and have not yet
+				// reached the maximum number of retries
+				if ($e->getCode() !== 1205 || !$this->retryOnDeadlock || $i === $this->maximumRetriesOnDeadlock)
+				{
+					throw $e;
+				}
+			}
 		}
-		$this->cutStats();
-		return $res;
 	}
 
 	private function prepareQuery($args)
