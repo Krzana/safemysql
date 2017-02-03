@@ -184,8 +184,12 @@ class SafeMySQL
 	public function transaction($callback, $can_retry = false)
 	{
 		$this->query('START TRANSACTION');
+
+		// If there is a deadlock it may be permissable to rerun the entire callback, but individual statements
+		// within it should not be rerun
 		$retry_on_deadlock_status = $this->retryOnDeadlock;
 		$this->retryOnDeadlock = false;
+
     try
     {
     	$result = $this->retryIfDeadlocked($callback, $can_retry);
@@ -197,6 +201,7 @@ class SafeMySQL
       throw $e;
     } finally
     {
+    	// Reset the retryOnDeadlock property to whatever it was before this transaction started
     	$this->retryOnDeadlock = $retry_on_deadlock_status;
     }
 
