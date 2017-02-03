@@ -604,7 +604,7 @@ class SafeMySQL
 			{
 				// Only retry if this is a deadlock, this callable is allowed to be retried, and we have not yet reached
 				// the maximum number of retries
-				if ($can_retry && $e->getCode() === 1205 && $i < $this->maximumRetriesOnDeadlock)
+				if ($can_retry && $e->getCode() === 1213 && $i < $this->maximumRetriesOnDeadlock)
 				{
 					sleep(2 ** $i);
 					continue;
