@@ -834,7 +834,7 @@ class SafeMySQL
 			if (!is_array($row))
 			{
 				$this->error("Elements of array passed to MultiRow (?m) placeholder should be arrays; ".
-										 gettype($row)." given");
+				             gettype($row)." given");
 			}
 			$parsedRows[] = '(' . $this->createIN($row) . ')';
 		}
