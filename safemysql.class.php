@@ -185,7 +185,7 @@ class SafeMySQL
 	{
 		$this->query('START TRANSACTION');
 
-		// If there is a deadlock it may be permissable to rerun the entire callback, but individual statements
+		// If there is a deadlock it may be permissible to rerun the entire callback, but individual statements
 		// within it should not be rerun
 		$retry_on_deadlock_status = $this->retryOnDeadlock;
 		$this->retryOnDeadlock = false;
