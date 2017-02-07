@@ -183,12 +183,12 @@ class SafeMySQL
 	 */
 	public function transaction($callback, $can_retry = false)
 	{
+		if ($this->transactionInProgress)
+		{
+			throw Exception('Started a transaction, whilst a transaction was already in progress');
+		}
+		$this->transactionInProgress = true;
 		$this->query('START TRANSACTION');
-
-		// If there is a deadlock it may be permissible to rerun the entire callback, but individual statements
-		// within it should not be rerun
-		$retry_on_deadlock_status = $this->retryOnDeadlock;
-		$this->retryOnDeadlock = false;
 
 		try
 		{
@@ -202,8 +202,7 @@ class SafeMySQL
 			$this->query('ROLLBACK');
 			throw $e;
 		} finally {
-			// Reset the retryOnDeadlock property to whatever it was before this transaction started
-			$this->retryOnDeadlock = $retry_on_deadlock_status;
+			$this->transactionInProgress = false;
 		}
 	}
 
@@ -594,7 +593,7 @@ class SafeMySQL
 	{
 		if ($can_retry === null)
 		{
-			$can_retry = $this->retryOnDeadlock;
+			$can_retry = $this->retryOnDeadlock && !$this->transactionInProgress;
 		}
 		for ($i = 0; $i <= $this->maximumRetriesOnDeadlock; $i++)
 		{
