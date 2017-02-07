@@ -192,9 +192,15 @@ class SafeMySQL
 
 		try
 		{
-			$result = $this->retryIfDeadlocked($callback, $can_retry);
+			if ($can_retry)
+			{
+				$result = $this->retryIfDeadlocked($callback);
+			} else {
+				$result = $callback($this);
+			}
 			$this->query('COMMIT');
 			return $result;
+			}
 		} catch (Throwable $e) {
 			$this->query('ROLLBACK');
 			throw $e;
@@ -550,51 +556,43 @@ class SafeMySQL
 		return $this->stats;
 	}
 
-	/**
-	 * private function which actually executes $query.
-	 * also logs some stats like profiling info and error message
-	 *
-	 * @param string $query - a regular SQL query
-	 * @return mysqli result resource or FALSE on error
-	 */
+
 	private function rawQuery($query)
 	{
-		return $this->retryIfDeadlocked(
-			function($db) use($query)
+		$executeQuery = function ($db) use ($query) {
+			$start = microtime(TRUE);
+			$res   = mysqli_query($this->conn, $query);
+			$timer = microtime(TRUE) - $start;
+
+			$this->stats[] = array(
+				'query' => $query,
+				'start' => $start,
+				'timer' => $timer,
+			);
+			if (!$res)
 			{
-				$start = microtime(TRUE);
-				$res   = mysqli_query($this->conn, $query);
-				$timer = microtime(TRUE) - $start;
+				$error = mysqli_error($this->conn);
+				$errno = mysqli_errno($this->conn);
 
-				$this->stats[] = array(
-					'query' => $query,
-					'start' => $start,
-					'timer' => $timer,
-				);
-				if (!$res)
-				{
-					$error = mysqli_error($this->conn);
-					$errno = mysqli_errno($this->conn);
-
-					end($this->stats);
-					$key = key($this->stats);
-					$this->stats[$key]['error'] = $error;
-					$this->cutStats();
-
-					$this->error("$error. Full query: [$query]", $errno);
-				}
+				end($this->stats);
+				$key = key($this->stats);
+				$this->stats[$key]['error'] = $error;
 				$this->cutStats();
-				return $res;
+
+				$this->error("$error. Full query: [$query]", $errno);
 			}
-		);
+			$this->cutStats();
+			return $res;
+		}
+
+		if ($this->retryOnDeadlock && !$this->transactionInProgress) {
+			return $this->retryIfDeadlocked($executeQuery);
+		} else {
+			return $executeQuery($this);
+		}
 	}
 
-	private function retryIfDeadlocked($callback, $can_retry = null)
-	{
-		if ($can_retry === null)
-		{
-			$can_retry = $this->retryOnDeadlock && !$this->transactionInProgress;
-		}
+	private function retryIfDeadlocked($callback)
 		for ($i = 0; $i <= $this->maximumRetriesOnDeadlock; $i++)
 		{
 			try {
