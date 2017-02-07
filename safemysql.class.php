@@ -200,7 +200,6 @@ class SafeMySQL
 			}
 			$this->query('COMMIT');
 			return $result;
-			}
 		} catch (Throwable $e) {
 			$this->query('ROLLBACK');
 			throw $e;
