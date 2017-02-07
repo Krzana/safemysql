@@ -190,20 +190,20 @@ class SafeMySQL
 		$retry_on_deadlock_status = $this->retryOnDeadlock;
 		$this->retryOnDeadlock = false;
 
-    try
-    {
-    	$result = $this->retryIfDeadlocked($callback, $can_retry);
-	    $this->query('COMMIT');
-	    return $result;
-    } catch (Throwable $e)
-    {
-      $this->query('ROLLBACK');
-      throw $e;
-    } finally
-    {
-    	// Reset the retryOnDeadlock property to whatever it was before this transaction started
-    	$this->retryOnDeadlock = $retry_on_deadlock_status;
-    }
+		try
+		{
+			$result = $this->retryIfDeadlocked($callback, $can_retry);
+			$this->query('COMMIT');
+			return $result;
+		} catch (Throwable $e)
+		{
+			$this->query('ROLLBACK');
+			throw $e;
+		} finally
+		{
+			// Reset the retryOnDeadlock property to whatever it was before this transaction started
+			$this->retryOnDeadlock = $retry_on_deadlock_status;
+		}
 
 	}
 
@@ -834,7 +834,7 @@ class SafeMySQL
 			if (!is_array($row))
 			{
 				$this->error("Elements of array passed to MultiRow (?m) placeholder should be arrays; ".
-				             gettype($row)." given");
+										 gettype($row)." given");
 			}
 			$parsedRows[] = '(' . $this->createIN($row) . ')';
 		}
