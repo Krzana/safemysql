@@ -582,7 +582,7 @@ class SafeMySQL
 			}
 			$this->cutStats();
 			return $res;
-		}
+		};
 
 		if ($this->retryOnDeadlock && !$this->transactionInProgress) {
 			return $this->retryIfDeadlocked($executeQuery);
