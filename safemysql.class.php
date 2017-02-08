@@ -183,7 +183,7 @@ class SafeMySQL
 	 */
 	public function transaction($callback, $can_retry = false)
 	{
-		if ($this->transactionInProgress)
+		if (!empty($this->transactionInProgress))
 		{
 			throw Exception('Started a transaction, whilst a transaction was already in progress');
 		}
@@ -584,7 +584,7 @@ class SafeMySQL
 			return $res;
 		};
 
-		if ($this->retryOnDeadlock && !$this->transactionInProgress) {
+		if ($this->retryOnDeadlock && !empty($this->transactionInProgress)) {
 			return $this->retryIfDeadlocked($executeQuery);
 		} else {
 			return $executeQuery($this);
