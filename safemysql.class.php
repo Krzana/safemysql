@@ -592,6 +592,7 @@ class SafeMySQL
 	}
 
 	private function retryIfDeadlocked($callback)
+	{
 		for ($i = 0; $i <= $this->maximumRetriesOnDeadlock; $i++)
 		{
 			try {
