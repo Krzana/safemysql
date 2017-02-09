@@ -115,6 +115,8 @@ class SafeMySQL
 		'charset'   => 'utf8',
 		'errmode'   => 'exception', //or 'error'
 		'exception' => 'Exception', //Exception class name
+		'retryOnDeadlock' => true,
+		'maximumRetriesOnDeadlock' => 3,
 	);
 
 	const RESULT_ASSOC = MYSQLI_ASSOC;
@@ -126,6 +128,9 @@ class SafeMySQL
 
 		$this->emode  = $opt['errmode'];
 		$this->exname = $opt['exception'];
+		$this->retryOnDeadlock = $opt['retryOnDeadlock'];
+		$this->maximumRetriesOnDeadlock = $opt['maximumRetriesOnDeadlock'];
+		$this->transactionInProgress = false;
 
 		if (isset($opt['mysqli']))
 		{
@@ -168,6 +173,43 @@ class SafeMySQL
 	public function query()
 	{
 		return $this->rawQuery($this->prepareQuery(func_get_args()));
+	}
+
+
+	/**
+	 * Run the provided callback inside a transaction
+	 * @param  callable $callback
+	 * @param  [boolean] $can_retry If the whole transaction should be retried, if it fails due to a deadlock
+	 * @return mixed whatever the callback returns
+	 */
+	public function transaction($callback, $can_retry = false)
+	{
+		if ($this->transactionInProgress)
+		{
+			throw Exception('Cannot start a transaction because a transaction is already in progress');
+		}
+		$this->transactionInProgress = true;
+		$this->query('START TRANSACTION');
+
+		try
+		{
+			if ($can_retry)
+			{
+				$result = $this->retryIfDeadlocked($callback);
+			} else {
+				$result = $callback($this);
+			}
+			$this->query('COMMIT');
+			return $result;
+		} catch (Throwable $e) {
+			$this->query('ROLLBACK');
+			throw $e;
+		} catch (Exception $e) {
+			$this->query('ROLLBACK');
+			throw $e;
+		} finally {
+			$this->transactionInProgress = false;
+		}
 	}
 
 	/**
@@ -514,38 +556,60 @@ class SafeMySQL
 		return $this->stats;
 	}
 
-	/**
-	 * private function which actually executes $query.
-	 * also logs some stats like profiling info and error message
-	 * 
-	 * @param string $query - a regular SQL query
-	 * @return mysqli result resource or FALSE on error
-	 */
+
 	private function rawQuery($query)
 	{
-		$start = microtime(TRUE);
-		$res   = mysqli_query($this->conn, $query);
-		$timer = microtime(TRUE) - $start;
+		$executeQuery = function ($db) use ($query) {
+			$start = microtime(TRUE);
+			$res   = mysqli_query($this->conn, $query);
+			$timer = microtime(TRUE) - $start;
 
-		$this->stats[] = array(
-			'query' => $query,
-			'start' => $start,
-			'timer' => $timer,
-		);
-		if (!$res)
-		{
-			$error = mysqli_error($this->conn);
-			$errno = mysqli_errno($this->conn);
-			
-			end($this->stats);
-			$key = key($this->stats);
-			$this->stats[$key]['error'] = $error;
+			$this->stats[] = array(
+				'query' => $query,
+				'start' => $start,
+				'timer' => $timer,
+			);
+			if (!$res)
+			{
+				$error = mysqli_error($this->conn);
+				$errno = mysqli_errno($this->conn);
+
+				end($this->stats);
+				$key = key($this->stats);
+				$this->stats[$key]['error'] = $error;
+				$this->cutStats();
+
+				$this->error("$error. Full query: [$query]", $errno);
+			}
 			$this->cutStats();
-			
-			$this->error("$error. Full query: [$query]", $errno);
+			return $res;
+		};
+
+		if ($this->retryOnDeadlock && !$this->transactionInProgress) {
+			return $this->retryIfDeadlocked($executeQuery);
+		} else {
+			return $executeQuery($this);
 		}
-		$this->cutStats();
-		return $res;
+	}
+
+	private function retryIfDeadlocked($callback)
+	{
+		for ($i = 0; $i <= $this->maximumRetriesOnDeadlock; $i++)
+		{
+			try {
+				return $callback($this);
+			} catch (Exception $e) {
+				// Only retry if this is a deadlock, this callable is allowed to be retried, and we have not yet reached
+				// the maximum number of retries
+				if ($can_retry && $e->getCode() === 1213 && $i < $this->maximumRetriesOnDeadlock)
+				{
+					sleep(pow(2, $i));
+					continue;
+				} else {
+					throw $e;
+				}
+			}
+		}
 	}
 
 	private function prepareQuery($args)
@@ -766,7 +830,7 @@ class SafeMySQL
 			if (!is_array($row))
 			{
 				$this->error("Elements of array passed to MultiRow (?m) placeholder should be arrays; ".
-				             gettype($row)." given");
+										 gettype($row)." given");
 			}
 			$parsedRows[] = '(' . $this->createIN($row) . ')';
 		}
