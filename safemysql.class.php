@@ -201,12 +201,6 @@ class SafeMySQL
 			}
 			$this->query('COMMIT');
 			return $result;
-		} catch (Throwable $e) {
-			$this->query('ROLLBACK');
-			throw $e;
-		} catch (Exception $e) {
-			$this->query('ROLLBACK');
-			throw $e;
 		} finally {
 			$this->transactionInProgress = false;
 		}
@@ -599,6 +593,10 @@ class SafeMySQL
 			try {
 				return $callback($this);
 			} catch (Exception $e) {
+				if ($this->transactionInProgress)
+				{
+					$this->query('ROLLBACK');
+				}
 				// Only retry if this is a deadlock, this callable is allowed to be retried, and we have not yet reached
 				// the maximum number of retries
 				if ($can_retry && $e->getCode() === 1213 && $i < $this->maximumRetriesOnDeadlock)
