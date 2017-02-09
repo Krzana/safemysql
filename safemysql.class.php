@@ -130,6 +130,7 @@ class SafeMySQL
 		$this->exname = $opt['exception'];
 		$this->retryOnDeadlock = $opt['retryOnDeadlock'];
 		$this->maximumRetriesOnDeadlock = $opt['maximumRetriesOnDeadlock'];
+		$this->transactionInProgress = false;
 
 		if (isset($opt['mysqli']))
 		{
@@ -183,7 +184,7 @@ class SafeMySQL
 	 */
 	public function transaction($callback, $can_retry = false)
 	{
-		if (!empty($this->transactionInProgress))
+		if ($this->transactionInProgress)
 		{
 			throw Exception('Started a transaction, whilst a transaction was already in progress');
 		}
@@ -584,7 +585,7 @@ class SafeMySQL
 			return $res;
 		};
 
-		if ($this->retryOnDeadlock && !empty($this->transactionInProgress)) {
+		if ($this->retryOnDeadlock && !$this->transactionInProgress) {
 			return $this->retryIfDeadlocked($executeQuery);
 		} else {
 			return $executeQuery($this);
