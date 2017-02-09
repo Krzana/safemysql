@@ -185,7 +185,7 @@ class SafeMySQL
 	{
 		if (!empty($this->transactionInProgress))
 		{
-			throw Exception('Started a transaction, whilst a transaction was already in progress');
+			throw Exception('Cannot start a transaction because a transaction is already in progress');
 		}
 		$this->transactionInProgress = true;
 		$this->query('START TRANSACTION');
