@@ -612,12 +612,6 @@ class SafeMySQL
 				} else {
 					throw $e;
 				}
-			} catch (Throwable $e) {
-				if ($this->transactionInProgress)
-				{
-					$this->query('ROLLBACK');
-				}
-				throw $e;
 			}
 		}
 	}
