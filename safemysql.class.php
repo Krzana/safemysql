@@ -603,9 +603,8 @@ class SafeMySQL
 				{
 					$this->query('ROLLBACK');
 				}
-				// Only retry if this is a deadlock, this callable is allowed to be retried, and we have not yet reached
-				// the maximum number of retries
-				if ($can_retry && $e->getCode() === 1213 && $i < $this->maximumRetriesOnDeadlock)
+				// Only retry if this is a deadlock, and we have not yet reached the maximum number of retries
+				if ($e->getCode() === 1213 && $i < $this->maximumRetriesOnDeadlock)
 				{
 					sleep(pow(2, $i));
 					continue;
