@@ -201,6 +201,12 @@ class SafeMySQL
 			}
 			$this->query('COMMIT');
 			return $result;
+		} catch (Throwable $e) {
+			$this->query('ROLLBACK');
+			throw $e;
+		} catch (Exception $e) {
+			$this->query('ROLLBACK');
+			throw $e;
 		} finally {
 			$this->transactionInProgress = false;
 		}
@@ -606,6 +612,12 @@ class SafeMySQL
 				} else {
 					throw $e;
 				}
+			} catch (Throwable $e) {
+				if ($this->transactionInProgress)
+				{
+					$this->query('ROLLBACK');
+				}
+				throw $e;
 			}
 		}
 	}
